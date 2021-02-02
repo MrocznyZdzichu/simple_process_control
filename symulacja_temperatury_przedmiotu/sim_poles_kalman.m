@@ -1,4 +1,4 @@
-function [y, u, yest] = sim_poles_kalman(system, Q, R, k, noise_u, noise_y, x_est, times, ampl, SP, To)
+function [y, u, yest] = sim_poles_kalman(system, Q, R, k, noise_u, noise_y, x_est, times, Pz, SP, To)
 [kest, L, P] = kalman(system, Q, R);
 %tylko 1. wejscie jest sterujace
 K = place(system.A, system.B(:, 1), k);
@@ -12,8 +12,6 @@ pp_T =[16.8061, 16.8106];
 y0 = pp_T;
 y = y0;
 u = pp_Pt;
-
-Pz = cumsum(ampl*randn(1, length(times)));
 
 yest = pp_T(2);
 
