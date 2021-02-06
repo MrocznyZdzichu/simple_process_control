@@ -21,17 +21,17 @@ a3 = sig2/(m*c);
 a4 = -sig2/(m*c);
 
 %disturbance power is not measureable so we cannot use it for control
-%we cannot use surrounding temperature to control too
+%we can use surrounding temperature for state prediction only
 b1 = 1/(a*b*h*cp*density);
 %b2 = 1/(a*b*h*cp*density);
-%b3 = sig/(a*b*h*cp*density);
+b3 = sig/(a*b*h*cp*density);
 b4 = 0;
 %b5 = 0;
-%b6 = 0;
+b6 = 0;
 
 A = [a1, a2; a3, a4];
-B = [b1; b4];
-C = [1, 0];
+B = [b1 b3; b4 b6];
+C = [0, 1];
 D = [0];
 
 system = ss(A, B, C, D);
@@ -225,3 +225,71 @@ plot(conditions.times, u3)
 legend(sprintf('Q/R = %d', Q1), sprintf('Q/R = %d', Q2), sprintf('Q/R = %d', Q3))
 ylabel('Moc w W')
 xlabel('Czas symulacji w s')
+
+%% Comparison of observers
+conditions.times = 1:1:7000;                               
+
+ampl = 50;                                                  
+dPz = cumsum(ampl*randn(1, length(conditions.times)));      
+Pz = dPz + plant.pp_Pz;
+Pz(Pz < 50) = 50;                                           
+Pz(Pz > 300) = 300;
+dPz = Pz - plant.pp_Pz;
+
+conditions.Pz = Pz;
+conditions.dPz = dPz;
+clear Pz;
+clear dPz;
+
+conditions.To = -3*ones(1, length(conditions.times));%surrounding temperature
+conditions.noise_u = 50;
+conditions.noise_y = 0.05;
+conditions.SP = plant.pp_T(2)*ones(1, length(conditions.times));
+conditions.SP(200:1500) = 22;
+conditions.SP(3200:5500) = 10;
+
+%we are cheating and pretenting we know all states
+u0 = plant.pp_Pt;
+y0 = plant.pp_T';
+x0 = y0 - plant.pp_T';
+
+Q1 = 1e7;
+R = 1;
+
+[y1, u1] = sim_lqr(plant, conditions, Q1, R, u0, y0, x0);
+[y2, u2] = sim_lqr(plant, conditions, Q1, R, u0, y0, x0, 'Luenberg', [-0.3, -0.7]);
+[y3, u3] = sim_lqr(plant, conditions, Q1, R, u0, y0, x0, 'Kalman', [50, 1e-5]);
+
+%%
+figure()
+plot(conditions.times, y1(2, :))
+hold on
+plot(conditions.times, y2(2, :))
+hold on
+plot(conditions.times, y3(2, :))
+hold on
+plot(conditions.times, conditions.SP, '--')
+ylabel('Temperatura przedmiotu w degC')
+legend('Pomiar stanu', 'Obserwator Luenberga', 'Obserwator Kalmana', 'Wartość zadana')
+%%
+figure()
+plot(conditions.times, y1(1, :))
+hold on
+plot(conditions.times, y2(1, :))
+hold on
+plot(conditions.times, y3(1, :))
+hold on
+plot(conditions.times, conditions.SP, '--')
+ylabel('Temperatura pomieszczenia w degC')
+legend('Pomiar stanu', 'Obserwator Luenberga', 'Obserwator Kalmana', 'Wartość zadana')
+%%
+figure()
+plot(conditions.times, u1)
+hold on
+plot(conditions.times, u2)
+hold on
+plot(conditions.times, u3)
+hold on
+plot(conditions.times, conditions.Pz)
+ylabel('Temperatura przedmiotu w degC')
+legend('Pomiar stanu', 'Obserwator Luenberga', 'Obserwator Kalmana', 'Moc zakłóceń')
